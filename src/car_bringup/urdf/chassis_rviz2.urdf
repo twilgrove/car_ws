@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<robot
+  name="chassis">
+  <link
+    name="base_link">
+    <inertial>
+      <mass value="18.5"/>
+      <origin
+        xyz="0.00460426296013341 0.000560168555316175 0.17108870691119"
+        rpy="0 0 0" />
+      <inertia
+        ixx="0.0251639355582962"
+        ixy="-6.16052391884279E-05"
+        ixz="-5.95939896946409E-06"
+        iyy="0.0485743320125798"
+        iyz="-8.54366663498711E-06"
+        izz="0.0561477814522484" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_bringup/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_bringup/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="lidar_link">
+    <inertial>
+      <origin
+        xyz="0.000933726954274586 1.21116914032493E-05 -0.0255158800437479"
+        rpy="0 0 0" />
+      <mass
+        value="0.064958193863409" />
+      <inertia
+        ixx="1.85906079775241E-05"
+        ixy="-5.60334061539056E-09"
+        ixz="-4.23762719890267E-10"
+        iyy="1.70474084400921E-05"
+        iyz="6.00565788616967E-10"
+        izz="3.20469592047994E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_bringup/meshes/lidar_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_bringup/meshes/lidar_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint1"
+    type="fixed">
+    <origin
+      xyz="0.069765 0.0020959 -0.3067"
+      rpy="0 0 0" />
+    <parent
+      link="lidar_link" />
+    <child
+      link="base_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <gazebo reference="base_link">
+  <material>Gazebo/Silver</material>
+  </gazebo>
+  <gazebo reference="lidar_link">
+  <material>Gazebo/Blue</material>
+  </gazebo>
+</robot>

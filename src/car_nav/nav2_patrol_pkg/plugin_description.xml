@@ -1,0 +1,7 @@
+<library path="nav2_patrol_plugin">
+  <class name="nav2_patrol_pkg/ArrivalAction" type="nav2_patrol_pkg::WaitAtWaypoint" base_class_type="nav2_core::WaypointTaskExecutor">
+    <description>
+      This plugin calls the Nav2 Spin action when the robot arrives at a waypoint.
+    </description>
+  </class>
+</library>

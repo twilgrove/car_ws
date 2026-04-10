@@ -1,0 +1,51 @@
+teleop_twist_joy:
+  ros__parameters:
+    require_enable_button: false
+    enable_button: -1
+    enable_turbo_button: 4
+
+    # 左摇杆 X → linear.x
+    axis_linear.x: 1
+    # 左摇杆 Y → linear.y
+    axis_linear.y: 0
+    # 右摇杆 X → angular.z (yaw)
+    axis_angular.yaw: 3
+
+    # ===== 低速======
+    scale_linear.x:  -0.55
+    scale_linear.y:   0.55
+    scale_angular.yaw: 1.55
+
+    # ===== 高速======
+    scale_linear_turbo.x:  -1.1
+    scale_linear_turbo.y:   1.1
+    scale_angular_turbo.yaw: 3.1
+
+    # ===== 通用参数 =====
+    deadzone: 0.1
+    autorepeat_rate: 100.0
+
+
+
+# axes:
+# - -0.0   # 左摇杆 X （左 +，右 -）
+# - -0.0   # 左摇杆 Y （上 +，下 -）
+# -  1.0   # LT（扳机）
+# - -0.0   # 右摇杆 X（上 +，下 -）
+# - -0.0   # 右摇杆 Y（左 +，右 -）
+# -  1.0   # RT（扳机）
+# -  0.0   # 十字键 左+右-
+# -  0.0   # 十字键 上+下-
+# buttons:
+# - 0   # A
+# - 0   # B
+# - 0   # X
+# - 0   # Y
+# - 0   # LB
+# - 0   # RB
+# - 0   # SELECT
+# - 0   # START
+# - 0   # HOME
+# - 0   # C/按下L摇杆 
+# - 0   # Z/按下R摇杆 
+

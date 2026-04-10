@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>ROS 2 Nav Studio: Map Editor & Planner</title>
+    <style>
+        :root { --bg: #1e1e1e; --panel: #252526; --accent: #007acc; --text: #cccccc; --border: #3e3e42; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; user-select: none; }
+        
+        /* 布局框架 */
+        #sidebar { width: 340px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 20; box-shadow: 2px 0 10px rgba(0,0,0,0.3); }
+        
+        /* 顶部大模式切换 */
+        .mode-tabs { display: flex; background: #2d2d30; border-bottom: 1px solid var(--border); }
+        .mode-tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-size: 14px; font-weight: bold; color: #888; transition: 0.2s; border-bottom: 3px solid transparent; }
+        .mode-tab:hover { background: #333; color: #fff; }
+        .mode-tab.active { background: var(--panel); color: var(--accent); border-bottom-color: var(--accent); }
+
+        /* 内容区域 */
+        .workspace { flex: 1; overflow-y: auto; padding: 15px; display: none; }
+        .workspace.active { display: block; }
+
+        /* 组件样式 */
+        .group { background: #333; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #444; }
+        h3 { margin: 0 0 10px 0; font-size: 12px; color: #fff; text-transform: uppercase; border-bottom: 1px solid #555; padding-bottom: 5px; display: flex; justify-content: space-between; }
+        label { display: block; font-size: 11px; margin-top: 8px; color: #aaa; }
+        input[type="number"], input[type="text"] { width: 95%; background: #1e1e1e; border: 1px solid #555; color: white; padding: 6px; margin-top: 2px; border-radius: 2px; }
+        input[type="file"] { width: 100%; font-size: 11px; margin-top: 5px; }
+        
+        /* 按钮组 */
+        button { width: 100%; padding: 8px; background: var(--accent); color: white; border: none; cursor: pointer; margin-top: 10px; font-weight: bold; border-radius: 3px; font-size: 12px; transition: 0.2s; }
+        button:hover { filter: brightness(1.1); }
+        button.secondary { background: #444; }
+        button.danger { background: #c586c0; }
+        
+        /* 工具栏 (Draw Tools) */
+        .tools-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 5px; }
+        .tool-btn { padding: 8px; background: #222; border: 1px solid #444; text-align: center; cursor: pointer; font-size: 12px; color: #aaa; border-radius: 3px; }
+        .tool-btn:hover { background: #2a2a2a; }
+        .tool-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* 文本区域 */
+        textarea { width: 100%; height: 150px; background: #111; color: #9cdcfe; border: 1px solid #444; font-family: monospace; font-size: 11px; margin-top: 10px; resize: vertical; white-space: pre; }
+
+        /* 主画布区 */
+        #main-viewport { flex: 1; position: relative; background: #111; overflow: hidden; cursor: crosshair; }
+        
+        /* 叠加层 HUD */
+        .overlay-hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 4px; color: #ddd; font-size: 12px; pointer-events: none; line-height: 1.5; border: 1px solid #444; }
+        .key { color: var(--accent); font-weight: bold; }
+        
+        #coord-hud { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 5px 10px; border: 1px solid #444; border-radius: 3px; color: #4ec9b0; font-family: monospace; font-size: 12px; pointer-events: none; }
+
+        /* 状态条 */
+        .status-msg { font-size: 11px; color: #ce9178; margin-top: 5px; min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .status-msg.ok { color: #6a9955; }
+    </style>
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+    </script>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="mode-tabs">
+        <div class="mode-tab active" onclick="switchAppMode('editor')">🛠️ 地图编辑器</div>
+        <div class="mode-tab" onclick="switchAppMode('planner')">🚩 路径规划器</div>
+    </div>
+
+    <div id="ws-editor" class="workspace active">
+        <div class="group">
+            <h3>数据源 (Source)</h3>
+            <div style="margin-bottom:10px; border-bottom:1px solid #444; padding-bottom:10px;">
+                <label>选项 A: 从 PCD 点云生成</label>
+                <input type="file" id="pcdFile" accept=".pcd">
+                <div class="status-msg" id="pcdStatus">等待文件...</div>
+                <div style="display:flex; gap:5px; margin-top:5px;">
+                    <div style="flex:1"><label>Res</label><input type="number" id="pcdRes" value="0.05" step="0.01"></div>
+                    <div style="flex:1"><label>Min Z</label><input type="number" id="pcdMinZ" value="0.2" step="0.1"></div>
+                    <div style="flex:1"><label>Max Z</label><input type="number" id="pcdMaxZ" value="2.0" step="0.1"></div>
+                </div>
+                <button onclick="processPCD()">⚡ 生成地图</button>
+            </div>
+            
+            <div>
+                <label>选项 B: 编辑现有地图 (YAML + PGM)</label>
+                <input type="file" id="yamlFile" accept=".yaml">
+                <input type="file" id="pgmFile" accept=".pgm,.png,.jpg">
+                <button class="secondary" onclick="loadExistingMap()">📂 加载地图</button>
+            </div>
+        </div>
+
+        <div class="group">
+            <h3>修图工具 (Tools)</h3>
+            <div class="tools-grid">
+                <div class="tool-btn active" id="tool-pan" onclick="setEditorTool('pan')">✋ 移动</div>
+                <div class="tool-btn" id="tool-draw" onclick="setEditorTool('draw')">✏️ 补墙</div>
+                <div class="tool-btn" id="tool-erase" onclick="setEditorTool('erase')">⬜ 擦除</div>
+            </div>
+            <label>笔刷大小: <span id="brushSizeTxt">2</span> px</label>
+            <input type="range" id="brushSize" min="1" max="20" value="2" style="width:100%" oninput="document.getElementById('brushSizeTxt').innerText=this.value">
+        </div>
+
+        <div class="group">
+            <h3>参数校准 (Calibration)</h3>
+            <label>分辨率 (Resolution)</label>
+            <input type="number" id="globalRes" value="0.05" step="0.001" onchange="updateGlobalParams()">
+            <div style="display:flex; gap:5px">
+                <div style="flex:1"><label>Origin X</label><input type="number" id="globalOrgX" value="-10.0" step="0.05" onchange="updateGlobalParams()"></div>
+                <div style="flex:1"><label>Origin Y</label><input type="number" id="globalOrgY" value="-10.0" step="0.05" onchange="updateGlobalParams()"></div>
+            </div>
+            <label><input type="checkbox" id="globalFlipY" onchange="updateGlobalParams()"> 翻转 Y 轴 (Flip Y)</label>
+        </div>
+
+        <div class="group">
+            <button onclick="exportMapAssets()">💾 导出 PGM & YAML</button>
+        </div>
+    </div>
+
+    <div id="ws-planner" class="workspace">
+        <div class="group">
+            <h3>航点列表 (Waypoints)</h3>
+            <div style="color:#aaa; font-size:12px; margin-bottom:10px;">
+                <span id="wp-count">0</span> 个航点
+            </div>
+            <button onclick="undoWaypoint()">↩️ 撤销上一步</button>
+            <button class="danger" onclick="clearWaypoints()">🗑️ 清空所有</button>
+        </div>
+
+        <div class="group">
+            <h3>导出参数 (Export)</h3>
+            <textarea id="wp-output" readonly placeholder="数据将在此生成..."></textarea>
+            <button onclick="copyWaypoints()">📋 复制到剪贴板</button>
+        </div>
+        
+        <div class="group" style="background: #252526; border:none;">
+            <p style="font-size:11px; color:#666;">
+                * 提示：规划器直接使用编辑器中的地图作为底图。
+                <br>* 请先在编辑器中确保 Origin/Resolution 正确。
+            </p>
+        </div>
+    </div>
+</div>
+
+<div id="main-viewport">
+    <div class="overlay-hud" id="hud-tips">
+        <div id="tip-editor">
+            <span class="key">左键</span>：涂抹/擦除<br>
+            <span class="key">右键</span>：拖拽画布<br>
+            <span class="key">滚轮</span>：缩放
+        </div>
+        <div id="tip-planner" style="display:none">
+            <span class="key">左键</span>：按下定点，拖拽定方向<br>
+            <span class="key">右键</span>：拖拽画布<br>
+            <span class="key">滚轮</span>：缩放
+        </div>
+    </div>
+    
+    <div id="coord-hud">X: 0.00 Y: 0.00</div>
+
+    <div id="canvas-stack" style="transform-origin: 0 0;">
+        <canvas id="cvs-map" style="position:absolute; left:0; top:0; image-rendering: pixelated;"></canvas>
+        <canvas id="cvs-ui" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
+    </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { PCDLoader } from 'three/addons/loaders/PCDLoader.js';
+
+// ==========================================
+// 1. 全局状态管理 (State)
+// ==========================================
+const state = {
+    mode: 'editor', // 'editor' | 'planner'
+    editorTool: 'pan', // 'pan' | 'draw' | 'erase'
+    
+    // 地图数据
+    width: 800,
+    height: 800,
+    resolution: 0.05,
+    originX: -10.0,
+    originY: -10.0,
+    flipY: false,
+    
+    // 视图变换
+    scale: 1.0,
+    panX: 0,
+    panY: 0,
+    
+    // 交互状态
+    isMouseDown: false,
+    lastMouseX: 0,
+    lastMouseY: 0,
+    
+    // 航点数据
+    waypoints: [] // {mapX, mapY, rosYaw, wx, wy}
+};
+
+// DOM 引用
+const cvsMap = document.getElementById('cvs-map');
+const ctxMap = cvsMap.getContext('2d', {willReadFrequently: true});
+const cvsUI = document.getElementById('cvs-ui');
+const ctxUI = cvsUI.getContext('2d');
+const stack = document.getElementById('canvas-stack');
+const viewport = document.getElementById('main-viewport');
+
+// 初始化
+function init() {
+    resizeCanvas(800, 800);
+    resetView();
+    renderLoop();
+    
+    // 默认画个白底
+    ctxMap.fillStyle = '#cdcdcd'; // 未知区域颜色 (ROS 205)
+    ctxMap.fillRect(0,0,800,800);
+}
+
+// ==========================================
+// 2. 核心逻辑：模式切换与视图
+// ==========================================
+window.switchAppMode = (mode) => {
+    state.mode = mode;
+    // UI 切换
+    document.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.workspace').forEach(el => el.classList.remove('active'));
+    
+    if(mode === 'editor') {
+        document.querySelector('.mode-tab:nth-child(1)').classList.add('active');
+        document.getElementById('ws-editor').classList.add('active');
+        document.getElementById('tip-editor').style.display = 'block';
+        document.getElementById('tip-planner').style.display = 'none';
+    } else {
+        document.querySelector('.mode-tab:nth-child(2)').classList.add('active');
+        document.getElementById('ws-planner').classList.add('active');
+        document.getElementById('tip-editor').style.display = 'none';
+        document.getElementById('tip-planner').style.display = 'block';
+        // 切换到规划模式时，重新生成一下数据预览
+        generateWaypointOutput();
+    }
+    renderUI(); // 立即刷新 UI 层
+};
+
+window.setEditorTool = (tool) => {
+    state.editorTool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tool-'+tool).classList.add('active');
+};
+
+function updateViewTransform() {
+    stack.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+}
+
+function resetView() {
+    // 居中显示
+    const viewW = viewport.clientWidth;
+    const viewH = viewport.clientHeight;
+    state.scale = Math.min(viewW / state.width, viewH / state.height) * 0.85;
+    state.panX = (viewW - state.width * state.scale) / 2;
+    state.panY = (viewH - state.height * state.scale) / 2;
+    updateViewTransform();
+}
+
+function resizeCanvas(w, h) {
+    state.width = w;
+    state.height = h;
+    cvsMap.width = w; cvsMap.height = h;
+    cvsUI.width = w; cvsUI.height = h;
+    stack.style.width = w + 'px';
+    stack.style.height = h + 'px';
+}
+
+// ==========================================
+// 3. 交互事件监听
+// ==========================================
+viewport.addEventListener('wheel', e => {
+    e.preventDefault();
+    const zoomSpeed = 0.1;
+    const delta = e.deltaY > 0 ? -1 : 1;
+    const factor = Math.exp(delta * zoomSpeed);
+    
+    // 鼠标中心缩放算法
+    const rect = viewport.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    
+    const mapX = (mx - state.panX) / state.scale;
+    const mapY = (my - state.panY) / state.scale;
+    
+    let newScale = state.scale * factor;
+    if(newScale < 0.05) newScale = 0.05;
+    if(newScale > 50) newScale = 50;
+    
+    state.panX = mx - mapX * newScale;
+    state.panY = my - mapY * newScale;
+    state.scale = newScale;
+    
+    updateViewTransform();
+});
+
+// 鼠标按下
+let plannerStart = null; // 规划器拖拽起点
+
+viewport.addEventListener('mousedown', e => {
+    state.isMouseDown = true;
+    state.lastMouseX = e.clientX;
+    state.lastMouseY = e.clientY;
+    
+    // 规划器模式：左键开始标点
+    if(state.mode === 'planner' && e.button === 0) {
+        const pos = getMapPos(e);
+        if(pos) plannerStart = pos;
+    }
+    
+    // 编辑器模式：左键点击立即画一笔
+    if(state.mode === 'editor' && e.button === 0 && state.editorTool !== 'pan') {
+        paintOnMap(e);
+    }
+});
+
+// 鼠标移动
+viewport.addEventListener('mousemove', e => {
+    // 1. 更新 HUD 坐标
+    const pos = getMapPos(e);
+    if(pos) {
+        const world = mapPixelToWorld(pos.x, pos.y);
+        document.getElementById('coord-hud').innerText = `X: ${world.x.toFixed(2)} Y: ${world.y.toFixed(2)}`;
+    }
+    
+    // 2. 处理拖拽画布 (右键 或 Pan模式)
+    const isRightClick = e.buttons === 2;
+    if(state.isMouseDown && (isRightClick || (state.mode === 'editor' && state.editorTool === 'pan' && e.button === 0))) {
+        state.panX += e.clientX - state.lastMouseX;
+        state.panY += e.clientY - state.lastMouseY;
+        updateViewTransform();
+    }
+    
+    // 3. 编辑器绘画
+    if(state.isMouseDown && state.mode === 'editor' && state.editorTool !== 'pan' && !isRightClick) {
+        paintOnMap(e);
+    }
+    
+    // 4. 规划器拖拽预览
+    if(state.isMouseDown && state.mode === 'planner' && plannerStart) {
+        // 只需触发重绘 UI
+        renderUI(pos); // 传入当前鼠标位置用于画临时箭头
+    }
+
+    state.lastMouseX = e.clientX;
+    state.lastMouseY = e.clientY;
+});
+
+// 鼠标松开
+window.addEventListener('mouseup', e => {
+    state.isMouseDown = false;
+    
+    // 规划器：完成标点
+    if(state.mode === 'planner' && plannerStart) {
+        const endPos = getMapPos(e);
+        if(endPos) {
+            const dx = endPos.x - plannerStart.x;
+            const dy = endPos.y - plannerStart.y;
+            // 计算地图像素系的角度
+            let pixelYaw = (Math.abs(dx) > 1 || Math.abs(dy) > 1) ? Math.atan2(dy, dx) : 0;
+            
+            // 转换为 ROS 角度
+            // ROS X轴 = 右, Y轴 = 上
+            // Canvas X轴 = 右, Y轴 = 下
+            // 如果 flipY=false: Canvas Y+ 是 ROS Y-。所以角度取反。
+            let rosYaw = state.flipY ? -pixelYaw : -pixelYaw;
+            
+            const world = mapPixelToWorld(plannerStart.x, plannerStart.y);
+            
+            state.waypoints.push({
+                mapX: plannerStart.x,
+                mapY: plannerStart.y,
+                pixelYaw: pixelYaw,
+                wx: world.x,
+                wy: world.y,
+                rosYaw: rosYaw
+            });
+            updateWaypointCount();
+            generateWaypointOutput();
+        }
+        plannerStart = null;
+        renderUI();
+    }
+});
+
+// 阻止右键菜单
+viewport.addEventListener('contextmenu', e => e.preventDefault());
+
+// 辅助：获取鼠标在 Map 上的像素坐标
+function getMapPos(e) {
+    const rect = viewport.getBoundingClientRect();
+    // 计算相对于 viewport 的位置
+    const vx = e.clientX - rect.left;
+    const vy = e.clientY - rect.top;
+    // 反推 transform
+    const mx = (vx - state.panX) / state.scale;
+    const my = (vy - state.panY) / state.scale;
+    
+    if(mx >= 0 && mx < state.width && my >= 0 && my < state.height) {
+        return { x: mx, y: my };
+    }
+    return null;
+}
+
+// ==========================================
+// 4. 编辑器逻辑 (PCD / Map Load / Paint)
+// ==========================================
+
+// PCD 处理
+window.processPCD = () => {
+    const file = document.getElementById('pcdFile').files[0];
+    if(!file) return alert("请先选择 PCD 文件");
+    
+    const status = document.getElementById('pcdStatus');
+    status.innerText = "正在解析 PCD...";
+    
+    const loader = new PCDLoader();
+    loader.load(URL.createObjectURL(file), (points) => {
+        status.innerText = `点数: ${points.geometry.attributes.position.count}, 正在栅格化...`;
+        status.classList.add('ok');
+        
+        // 稍作延时让 UI 刷新
+        setTimeout(() => rasterizePCD(points), 50);
+    }, undefined, (err) => {
+        status.innerText = "加载失败";
+        console.error(err);
+    });
+};
+
+function rasterizePCD(points) {
+    const res = parseFloat(document.getElementById('pcdRes').value);
+    const minZ = parseFloat(document.getElementById('pcdMinZ').value);
+    const maxZ = parseFloat(document.getElementById('pcdMaxZ').value);
+    
+    const pos = points.geometry.attributes.position;
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    
+    // 1. 过滤 & 找边界
+    const validIndices = [];
+    for(let i=0; i<pos.count; i++) {
+        const z = pos.getZ(i);
+        if(z >= minZ && z <= maxZ) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            if(x < minX) minX = x; if(x > maxX) maxX = x;
+            if(y < minY) minY = y; if(y > maxY) maxY = y;
+            validIndices.push(i);
+        }
+    }
+    
+    if(validIndices.length === 0) return alert("指定高度范围内没有点云！");
+    
+    // Padding
+    const padding = 1.0; // 米
+    minX -= padding; maxX += padding; minY -= padding; maxY += padding;
+    
+    const w = Math.ceil((maxX - minX) / res);
+    const h = Math.ceil((maxY - minY) / res);
+    
+    // 更新全局状态
+    resizeCanvas(w, h);
+    state.resolution = res;
+    // Canvas 原点在左上角，对应 ROS 坐标系的 (minX, maxY) 因为 ROS Y轴向上
+    // 但通常 map_server 输出 origin 是左下角。
+    // 这里为了简化，我们设定 originX = minX, originY = minY.
+    // 在 Canvas 里，像素 (0,0) 对应 (minX, maxY).
+    // 像素 (col, row) -> ROS X = minX + col*res
+    //                   ROS Y = maxY - row*res
+    
+    state.originX = minX;
+    state.originY = minY; 
+    state.flipY = false; // 标准 map_server 不需要 flip，因为我们渲染逻辑处理好
+    
+    syncGlobalInputs();
+
+    // 2. 绘制
+    ctxMap.fillStyle = "#cdcdcd"; // 未知
+    ctxMap.fillRect(0, 0, w, h);
+    ctxMap.fillStyle = "#000000"; // 占用
+    
+    for(let i of validIndices) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        
+        const col = Math.floor((x - minX) / res);
+        const row = Math.floor((maxY - y) / res); // Y轴翻转映射
+        
+        if(col >=0 && col < w && row >= 0 && row < h) {
+            ctxMap.fillRect(col, row, 1, 1);
+        }
+    }
+    
+    resetView();
+    renderUI(); // 更新原点显示
+}
+
+// 现有地图加载
+window.loadExistingMap = async () => {
+    const fy = document.getElementById('yamlFile').files[0];
+    const fp = document.getElementById('pgmFile').files[0];
+    if(!fy || !fp) return alert("请同时选择 .yaml 和图片文件");
+    
+    // 解析 YAML
+    const txt = await fy.text();
+    const resMatch = txt.match(/resolution\s*:\s*([\d\.]+)/);
+    const orgMatch = txt.match(/origin\s*:\s*\[\s*([\-\d\.]+)\s*,\s*([\-\d\.]+)/);
+    
+    if(resMatch) state.resolution = parseFloat(resMatch[1]);
+    if(orgMatch) {
+        state.originX = parseFloat(orgMatch[1]);
+        state.originY = parseFloat(orgMatch[2]);
+    }
+    
+    syncGlobalInputs();
+    
+    // 解析图片
+    if(fp.name.endsWith('.pgm')) {
+        const buf = await fp.arrayBuffer();
+        parsePGM(buf);
+    } else {
+        const img = new Image();
+        img.onload = () => {
+            resizeCanvas(img.width, img.height);
+            ctxMap.drawImage(img, 0, 0);
+            resetView();
+            renderUI();
+        };
+        img.src = URL.createObjectURL(fp);
+    }
+};
+
+function parsePGM(buffer) {
+    const view = new DataView(buffer);
+    let offset = 0;
+    function next() {
+        let t = "";
+        let isComm = false;
+        while(offset < buffer.byteLength) {
+            const c = String.fromCharCode(view.getUint8(offset++));
+            if(c === '#') isComm = true;
+            if(c === '\n') isComm = false;
+            if(isComm) continue;
+            if(/\s/.test(c)) { if(t.length > 0) return t; }
+            else t += c;
+        }
+        return null;
+    }
+    
+    const type = next();
+    if(type !== 'P5' && type !== 'P2') return alert("不支持的 PGM 格式");
+    const w = parseInt(next());
+    const h = parseInt(next());
+    const max = parseInt(next());
+    
+    resizeCanvas(w, h);
+    const imgData = ctxMap.createImageData(w, h);
+    const d = imgData.data;
+    
+    for(let i=0; i<w*h; i++) {
+        let val;
+        if(type === 'P5') val = view.getUint8(offset++); // Binary
+        else val = parseInt(next()); // ASCII
+        
+        d[i*4] = val; d[i*4+1] = val; d[i*4+2] = val; d[i*4+3] = 255;
+    }
+    ctxMap.putImageData(imgData, 0, 0);
+    resetView();
+    renderUI();
+}
+
+// 绘画逻辑
+function paintOnMap(e) {
+    const pos = getMapPos(e);
+    if(!pos) return;
+    
+    const sz = parseInt(document.getElementById('brushSize').value);
+    
+    if(state.editorTool === 'draw') ctxMap.fillStyle = '#000'; // 黑色障碍物
+    else if(state.editorTool === 'erase') ctxMap.fillStyle = '#fff'; // 白色空闲
+    
+    // 圆形笔触模拟
+    ctxMap.fillRect(pos.x - sz/2, pos.y - sz/2, sz, sz);
+}
+
+// ==========================================
+// 5. 规划器逻辑 (Waypoints)
+// ==========================================
+
+function updateWaypointCount() {
+    document.getElementById('wp-count').innerText = state.waypoints.length;
+}
+
+window.undoWaypoint = () => {
+    state.waypoints.pop();
+    updateWaypointCount();
+    generateWaypointOutput();
+    renderUI();
+};
+
+window.clearWaypoints = () => {
+    if(confirm('清空所有航点？')) {
+        state.waypoints = [];
+        updateWaypointCount();
+        generateWaypointOutput();
+        renderUI();
+    }
+};
+
+window.generateWaypointOutput = () => {
+    if(state.waypoints.length === 0) {
+        document.getElementById('wp-output').value = "";
+        return;
+    }
+    
+    let txt = "patrol_sender:\n  ros__parameters:\n";
+    txt += `    num_waypoints: ${state.waypoints.length}\n`;
+    txt += `    # 格式: [x, y, yaw(弧度)]\n`;
+    
+    state.waypoints.forEach((wp, i) => {
+        txt += `    waypoint_${i}: [${wp.wx.toFixed(2)}, ${wp.wy.toFixed(2)}, ${wp.rosYaw.toFixed(2)}]  # 点${i}\n`;
+    });
+    
+    document.getElementById('wp-output').value = txt;
+};
+
+window.copyWaypoints = () => {
+    document.getElementById('wp-output').select();
+    document.execCommand("copy");
+    alert("已复制到剪贴板");
+};
+
+// ==========================================
+// 6. 渲染 UI 层 (Overlay)
+// ==========================================
+function renderUI(currentMousePos = null) {
+    ctxUI.clearRect(0, 0, state.width, state.height);
+    
+    // 1. 绘制原点坐标轴
+    drawOriginAxis();
+    
+    // 2. 绘制航点
+    state.waypoints.forEach((wp, i) => {
+        drawArrow(wp.mapX, wp.mapY, wp.pixelYaw, i, '#0f0');
+    });
+    
+    // 3. 绘制正在拖拽的航点
+    if(state.mode === 'planner' && plannerStart && currentMousePos) {
+        const dx = currentMousePos.x - plannerStart.x;
+        const dy = currentMousePos.y - plannerStart.y;
+        const angle = Math.atan2(dy, dx);
+        drawArrow(plannerStart.x, plannerStart.y, angle, state.waypoints.length, '#ff0');
+    }
+}
+
+function drawOriginAxis() {
+    // 坐标转换公式: 
+    // ROS X = ox + px * res  ==> px = (0 - ox)/res
+    // ROS Y = oy + (h - py)*res ==> py = h - (0 - oy)/res
+    
+    const px = -state.originX / state.resolution;
+    const py = state.height + (state.originY / state.resolution); // 假设 Y轴未翻转 (标准PGM)
+    
+    const len = 50;
+    ctxUI.lineWidth = 3;
+    
+    // X Axis (Red)
+    ctxUI.beginPath(); ctxUI.strokeStyle = 'red';
+    ctxUI.moveTo(px, py); ctxUI.lineTo(px + len, py); ctxUI.stroke();
+    
+    // Y Axis (Green) - ROS Y向上, Canvas Y向下
+    ctxUI.beginPath(); ctxUI.strokeStyle = '#0f0';
+    ctxUI.moveTo(px, py); ctxUI.lineTo(px, py - len); ctxUI.stroke();
+    
+    ctxUI.fillStyle = 'yellow';
+    ctxUI.font = '14px Arial';
+    ctxUI.fillText("(0,0)", px+5, py-5);
+}
+
+function drawArrow(x, y, angle, label, color) {
+    const len = 40;
+    ctxUI.save();
+    ctxUI.translate(x, y);
+    ctxUI.rotate(angle);
+    
+    ctxUI.beginPath();
+    ctxUI.moveTo(0, 0); ctxUI.lineTo(len, 0);
+    ctxUI.lineTo(len-10, -5); ctxUI.lineTo(len-10, 5); ctxUI.lineTo(len, 0);
+    
+    ctxUI.strokeStyle = color; ctxUI.lineWidth = 2; ctxUI.stroke();
+    ctxUI.fillStyle = color; ctxUI.fill();
+    
+    // 绘制圆点
+    ctxUI.beginPath(); ctxUI.arc(0,0, 4, 0, Math.PI*2); ctxUI.fill();
+    ctxUI.restore();
+    
+    // 标签
+    ctxUI.fillStyle = 'white';
+    ctxUI.font = '16px Arial';
+    ctxUI.strokeStyle = 'black';
+    ctxUI.lineWidth = 3;
+    ctxUI.strokeText(label, x+10, y+10);
+    ctxUI.fillText(label, x+10, y+10);
+}
+
+// 坐标转换工具
+function mapPixelToWorld(px, py) {
+    const wx = state.originX + px * state.resolution;
+    // 标准 ROS PGM 映射
+    const wy = state.originY + (state.height - py) * state.resolution;
+    return { x: wx, y: wy };
+}
+
+// ==========================================
+// 7. 导出地图 (PGM/YAML)
+// ==========================================
+window.exportMapAssets = () => {
+    const w = state.width;
+    const h = state.height;
+    
+    // 1. 生成 PGM
+    const imgData = ctxMap.getImageData(0,0,w,h).data;
+    let pgmHeader = `P2\n${w} ${h}\n255\n`;
+    let pgmBody = "";
+    let line = [];
+    
+    for(let i=0; i<imgData.length; i+=4) {
+        // 取红色通道作为灰度 (黑白图RGB一样)
+        line.push(imgData[i]);
+        if(line.length >= 70) {
+            pgmBody += line.join(' ') + '\n';
+            line = [];
+        }
+    }
+    if(line.length) pgmBody += line.join(' ');
+    
+    saveFile(pgmHeader + pgmBody, 'map.pgm', 'text/plain');
+    
+    // 2. 生成 YAML
+    // ROS map_server origin 通常指图片的左下角
+    const yaml = `image: map.pgm
+mode: trinary
+resolution: ${state.resolution}
+origin: [${state.originX}, ${state.originY}, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196\n`;
+
+    saveFile(yaml, 'map.yaml', 'text/yaml');
+};
+
+function saveFile(content, name, type) {
+    const blob = new Blob([content], {type: type});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+}
+
+// 参数同步
+window.updateGlobalParams = () => {
+    state.resolution = parseFloat(document.getElementById('globalRes').value);
+    state.originX = parseFloat(document.getElementById('globalOrgX').value);
+    state.originY = parseFloat(document.getElementById('globalOrgY').value);
+    state.flipY = document.getElementById('globalFlipY').checked;
+    renderUI(); // 坐标轴会变
+    generateWaypointOutput(); // 导出的点坐标会变
+};
+
+function syncGlobalInputs() {
+    document.getElementById('globalRes').value = state.resolution;
+    document.getElementById('globalOrgX').value = state.originX;
+    document.getElementById('globalOrgY').value = state.originY;
+}
+
+function renderLoop() {
+    requestAnimationFrame(renderLoop);
+    // 可以在这里添加连续渲染逻辑，目前按需刷新即可
+}
+
+// 启动
+init();
+
+</script>
+</body>
+</html>

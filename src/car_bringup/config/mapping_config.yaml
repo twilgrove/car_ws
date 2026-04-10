@@ -1,0 +1,188 @@
+#-----------------------------Livox 雷达驱动节点配置-----------------------------#
+/livox_lidar_publisher: 
+  ros__parameters:
+    xfer_format : 4
+    multi_topic : 0
+    data_src : 0
+    publish_freq : 10.0
+    output_type : 0
+    frame_id : "lidar_link"
+    lvx_file_path : "/home/livox/livox_test.lvx"
+    cmdline_bd_code : "livox0000000001"
+
+#-----------------------------Fast-LIO 建图节点配置-----------------------------#
+/fast_lio_node:
+    ros__parameters:
+        feature_extract_enable: false
+        point_filter_num: 3
+        max_iteration: 3
+        filter_size_surf: 0.5
+        filter_size_map: 0.5
+        cube_side_length: 1000.0
+        runtime_pos_log_enable: false
+        map_file_path: "./test.pcd"
+
+        common:
+            lid_topic:  "/livox/lidar"
+            imu_topic:  "/livox/imu"
+            time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
+            time_offset_lidar_to_imu: 0.0 # Time offset between lidar and IMU calibrated by other algorithms, e.g. LI-Init (can be found in README).
+                                        # This param will take effect no matter what time_sync_en is. So if the time offset is not known exactly, please set as 0.0
+
+        preprocess:
+            lidar_type: 1                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR, 4 for any other pointcloud input
+            scan_line:  4
+            blind: 0.5  # 激光雷达的盲区
+            timestamp_unit: 3
+            scan_rate: 10
+
+        mapping:
+            acc_cov: 0.1
+            gyr_cov: 0.1
+            b_acc_cov: 0.0001
+            b_gyr_cov: 0.0001
+            fov_degree:    360.0
+            det_range:     100.0
+            extrinsic_est_en:  true      # true: enable the online estimation of IMU-LiDAR extrinsic
+            extrinsic_T: [ -0.011, -0.02329, 0.04412 ]
+            extrinsic_R: [ 1., 0., 0.,
+                            0., 1., 0.,
+                            0., 0., 1.]
+
+        publish:
+            path_en: true                # 里程计路径
+            effect_map_en: false         # 特征点地图
+            map_en: true                # 全局完整建图
+            scan_publish_en:  false      # 当前扫描的点云输出 (当前帧世界坐标系)
+            dense_publish_en: false      # 全局点云发布的密度 (设为 true 则发布稠密点云，false 则降采样以节省性能)
+            scan_bodyframe_pub_en: false  # 发布相对于车身坐标系且去畸变后的实时点云 
+
+        pcd_save:
+            pcd_save_en: true
+            interval: -1                 # how many LiDAR frames saved in each pcd file;  -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
+
+#-----------------------------地面分割节点配置-----------------------------#
+/ground_segmentation_node:
+  ros__parameters:
+    n_threads: 3                # 使用的线程数量 (建议设置为 CPU 核心数，提高处理速度)
+    r_min: 0.4                  # 最小距离阈值 (盲区过滤，小于 0.4m 的点会被忽略，防止把车体当成障碍物)
+    r_max: 50.0                 # 最大距离阈值 (超过 50m 的点不再处理，节省性能)
+    n_bins: 140                 # 径向分箱数量 (沿半径方向把扫描范围切成多少圈)
+    n_segments: 360             # 角度分段数量 (沿圆周方向切成多少份，360 表示每度一份)
+
+    max_dist_to_line: 0.15      # 判为地面的最大垂直距离 (如果一个点距离拟合出的地面线超过 0.15m，就被认为是障碍物)
+
+    sensor_height: 0.73         # ★关键参数★ 传感器离地高度 (雷达中心到地面的物理高度，单位：米。这个必须量准！)
+    min_slope: 0.0              # 地面直线的最小坡度 (通常为0，表示平地)
+    max_slope: 0.35             # 地面直线的最大坡度 (超过这个坡度会被认为是墙或者障碍物，0.35弧度约等于20度)
+    max_fit_error: 0.075        # 直线拟合过程中的最大允许误差 (越小越严格)
+    long_threshold: 1.0         # 长距离断开阈值 (如果同一直线上的两点间距超过1米，视为断开/不同物体)
+    max_long_height: 0.1        # 长距离线段中允许的最大高度跳变
+    max_start_height: 0.2       # 新线段开始时，允许与预估地面高度的最大差值
+    line_search_angle: 0.2      # 寻找直线时的角度搜索范围 [单位：弧度]
+
+    gravity_aligned_frame: ""   # 重力对齐坐标系 (其Z轴与重力方向一致的坐标系)。
+                                # 如果留空 ("")，则默认使用传感器坐标系。如果你的雷达是倾斜安装的，这里最好填 "base_link" 或 "map"。
+
+    latch: false                # 是否锁定输出话题 (Latch机制，设为true时，新订阅者会立即收到最后一条消息)
+    visualize: false            # 是否发布可视化标记 (仅用于调试 Debug，开启会显著消耗资源，平时设为 false)
+
+    input_topic: "livox/lidar/pointcloud"    # 输入点云话题 ( PointCloud2 话题名)
+    obstacle_output_topic: "segmentation/obstacle" # 输出：分割后的障碍物点云
+    ground_output_topic: "segmentation/ground"     # 输出：分割后的地面点云
+
+#-----------------------------点云转激光雷达节点配置-----------------------------#
+/pointcloud_to_laserscan_node:
+  ros__parameters:
+    target_frame: "lidar_link"      # 目标坐标系 (将点云转换到该坐标系下进行处理，通常为车身坐标系)
+    transform_tolerance: 0.01       # 坐标变换容忍时间 (秒)
+    min_height: -1.0                # 点云最低高度阈值 (低于此高度的点会被忽略，单位：米)
+    max_height: 0.1                 # 点云最高高度阈值 (高于此高度的点会被忽略，单位：米)
+    angle_min: -3.14                # 激光雷达扫描的最小角度 (弧度，-3.14表示-180度)
+    angle_max: 3.14                 # 激光雷达扫描的最大角度 (弧度，3.14表示180度)
+    angle_increment: 0.0043         # 激光雷达每个测量点之间的角度增量 (弧度，约等于0.33度)
+    scan_time: 0.3                  # 扫描周期 (秒)
+    range_min: 0.45                  # 激光雷达的最小测距范围 (米)
+    range_max: 10.0                # 激光雷达的最大测距范围 (米)
+    use_inf: true                   # 是否使用无穷大表示不可达距离 (true表示使用inf，false表示使用range_max)
+    inf_epsilon: 1.0                # 当use_inf为false时，设置不可达距离为range_max加上一个小偏移量 (米)
+
+
+#-----------------------------SLAM Toolbox 建图节点配置-----------------------------#
+/slam_toolbox_async_node:
+  ros__parameters:
+
+    # Plugin params (优化器插件参数，通常保持默认即可，不需要改)
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ================= ROS 核心参数 (最重要) =================
+    odom_frame: odom            # 里程计坐标系名字 (通常是 odom)
+    map_frame: map              # 地图坐标系名字 (通常是 map)
+    
+    # base_frame: 机器人的基座坐标系。
+    base_frame: lidar_link      
+    
+    scan_topic: /scan           # ★关键★ 2D雷达数据的话题名。必须和 'ros2 topic list' 里的一样。
+    mode: mapping
+
+    # ================= 地图管理 =================
+    #map_file_name: test_steve
+    # map_start_pose: [0.0, 0.0, 0.0] # 起始位置 [x, y, theta]
+    #map_start_at_dock: true          # 是否从充电桩位置开始
+
+    debug_logging: false              # 调试日志，平时 false，为了性能
+    throttle_scans: 1                 # 丢帧处理。1表示处理每一帧。如果CPU带不动，可以设为 2 (每2帧处理1帧)
+    transform_publish_period: 0.001   # 发布地图TF的间隔 (秒)。0.001 也就是最高频率发布。
+    map_update_interval: 1.0          # 地图更新间隔 (秒)。每秒更新一次显示的地图，太快费资源。
+    resolution: 0.05                  # ★关键★ 地图分辨率 (米/像素)。0.05 代表一个格子是 5cm。越小地图越精细但越费内存。
+    max_laser_range: 20.0             # 雷达最大有效距离。超过这个距离的点会被用于清除地图上的障碍物（标为自由空间）。
+    minimum_time_interval: 0.5        # 两次扫描处理的最小时间间隔，防止处理过快。
+    transform_timeout: 0.2            # TF 变换的超时时间。
+    tf_buffer_duration: 30.           # TF 缓存时间，用于回环检测时回溯历史。
+    stack_size_to_use: 40000          # 程序使用的栈内存大小。大地图需要改大这个值防止崩溃。
+    enable_interactive_mode: true     # 是否允许在 Rviz 中交互 (比如手动旋转回路来修正地图)。
+
+    # ================= 运动与关键帧参数 (决定建图流畅度) =================
+    use_scan_matching: true           # 是否使用扫描匹配来修正里程计误差 (必须 true)
+    use_scan_barycenter: true         # 使用扫描重心计算距离 (通常 true)
+    minimum_travel_distance: 0.5      # ★关键★ 最小移动距离。只有机器人移动了 0.5米，才把当前帧加入地图。防抖动。
+    minimum_travel_heading: 0.5       # ★关键★ 最小旋转角度 (弧度)。只有旋转了约 28度，才加入地图。
+    scan_buffer_size: 10              # 扫描缓冲区大小。
+    scan_buffer_maximum_scan_distance: 10.0 # 缓冲区最大距离。
+    link_match_minimum_response_fine: 0.1   # 局部匹配的最小得分阈值。
+    link_scan_maximum_distance: 1.5   # 连接两个节点的允许最大距离。
+    
+    # ================= 回环检测 (Loop Closure - 消除累积误差的关键) =================
+    do_loop_closing: true             # ★关键★ 是否开启回环检测。跑一圈回到原点时，能否自动修正地图闭合。
+    loop_search_maximum_distance: 3.0 # 回环搜索半径 (米)。当回到原点 3米范围内时，开始尝试闭合回路。
+    loop_match_minimum_chain_size: 10          
+    loop_match_maximum_variance_coarse: 3.0  
+    loop_match_minimum_response_coarse: 0.35   # 粗匹配最小得分。得分越高越严格，误匹配越少。 
+    loop_match_minimum_response_fine: 0.45     # 精细匹配最小得分。
+
+    # ================= 扫描匹配器细节 (高级参数，一般不改) =================
+    # Correlation Parameters - 相关性参数 (用于粗匹配)
+    correlation_search_space_dimension: 0.5      # 搜索空间大小
+    correlation_search_space_resolution: 0.01    # 搜索分辨率
+    correlation_search_space_smear_deviation: 0.1 
+
+    # Loop Closure Parameters - 回环搜索空间
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # Scan Matcher Parameters - 惩罚因子
+    distance_variance_penalty: 0.5      
+    angle_variance_penalty: 1.0    
+
+    fine_search_angle_offset: 0.00349     # 精细角度搜索范围
+    coarse_search_angle_offset: 0.349     # 粗略角度搜索范围
+    coarse_angle_resolution: 0.0349        
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true

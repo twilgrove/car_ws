@@ -1,0 +1,32 @@
+/icp_node:
+  ros__parameters:
+    # 核心路径 (请确认路径无误)
+    pcd_path: "/home/cys/maps/map.pcd"
+
+    # 话题设置 (Mid-360 标准点云)
+    pointcloud_topic: "/livox/lidar/pointcloud"
+
+    # 坐标系设置
+    map_frame_id: "map"
+    odom_frame_id: "odom"   # 对应 Fast-LIO 的里程计
+    laser_frame_id: "body"  # 对应 Mid-360 在 TF 树中的位置
+
+    # ICP 参数
+    rough_leaf_size: 0.4    # 粗匹配降采样 (m)
+    refine_leaf_size: 0.1   # 精匹配降采样 (m)
+    thresh: 0.2             # 匹配得分阈值 (越小越严格)
+    tf_rate: 50
+
+    # 搜索范围 (点击 2D Pose Estimate 后，会在这个范围内自动微调)
+    xy_offset: 0.2          # XY方向搜索范围 (m)
+    yaw_offset: 20.0        # 角度搜索范围 (度)
+    yaw_resolution: 5.0     # 角度搜索步长 (度)
+
+    init_pose:
+      x: 4.0
+      y: 2.0
+      z: 0.0
+      qx: 0.0
+      qy: 0.0
+      qz: -0.3
+      qw: 0.9
