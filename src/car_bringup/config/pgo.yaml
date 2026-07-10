@@ -1,0 +1,13 @@
+cloud_topic: /fastlio2/body_cloud
+odom_topic: /fastlio2/lio_odom
+map_frame: map
+local_frame: odom
+
+key_pose_delta_deg: 10       # 关键帧: 转角超过这个度数就插一帧
+key_pose_delta_trans: 0.5    # 关键帧: 平移超过这个米数就插一帧
+loop_search_radius: 1.0      # 回环搜索半径(m). 小空间够, 大场景可调大(5~15)
+loop_time_tresh: 60.0        # 回环时间阈值(s): 两帧时间差超过才算回环候选
+loop_score_tresh: 0.15       # 回环 ICP 匹配得分阈值, 越小越严
+loop_submap_half_range: 5    # 回环子图半径(关键帧数)
+submap_resolution: 0.1       # 回环匹配子图体素(m)
+min_loop_detect_duration: 5.0  # 两次回环检测最小间隔(s)

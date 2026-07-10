@@ -1,0 +1,23 @@
+chassis_node:
+  ros__parameters:
+    # RK3588 Linux -> RT-Thread CPU6 control path.
+    rpmsg_path: "/proc/rpmsg_rtt"
+    # 100Hz uses the stable SET + OK SET transaction path.
+    control_rate_hz: 100.0
+    status_rate_hz: 5.0
+    command_timeout_sec: 1.5
+    reply_wait_ms: 1
+
+    # Keep ROS cmd_vel unchanged, only scale it into the RT-Thread wm_set units.
+    linear_scale: 1.0
+    angular_scale: 0.001
+    max_linear_mps: 1.0
+    max_angular_rps: 1.0
+
+    # RT-Thread startup defaults for encoder closed-loop speed-wheel firmware.
+    auto_start: true
+    startup_mode: "PID"
+    pwm_min: 1200.0
+    pwm_gain: 200.0
+    pwm_max: 3000.0
+

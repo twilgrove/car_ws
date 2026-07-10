@@ -1,0 +1,46 @@
+/**:
+  ros__parameters:
+    # ---- 坐标系 ----
+    frame_id: map              # 八叉树/2D 图所在的全局帧
+    base_frame_id: base_link   # 机器人底盘帧
+
+    # ---- 分辨率 / 地图 ----
+    resolution: 0.10           # 体素/栅格分辨率(m), 小=细但慢/占内存
+    compress_map: true         # 压缩八叉树(合并同占据节点), 省内存
+    incremental_2D_projection: false  # false=每次重投整张2D图; true=增量更新
+
+    # ---- 点云插入 / 传感器模型 ----
+    sensor_model:
+      max_range: 20.0          # 最大插入距离(m), -1=无限(远处噪点会进图)
+      hit: 0.7                 # 命中→占据概率上调量
+      miss: 0.4                # 穿过→空闲概率下调量
+      min: 0.12                # 占据概率下限(clamp)
+      max: 0.97                # 占据概率上限(clamp)
+
+    # ---- 2D 投影高度带 (只把这个 z 范围投到 /projected_map) ----
+    occupancy_min_z: 0.2       # 最低高度(m)
+    occupancy_max_z: 1.5       # 最高高度(m)
+
+    # ---- 地面分割 (斜放雷达才用; 这里用高度带切, 关掉) ----
+    filter_ground: false       # 是否用平面拟合去地面
+    ground_filter:
+      distance: 0.04           # 地面点到拟合平面距离阈值(m)
+      angle: 0.15              # 地面法向允许偏差(rad)
+      plane_distance: 0.07     # 平面到原点距离阈值(m)
+    filter_speckles: false     # 去孤立噪点体素
+
+    # ---- 可视化 (只影响 rviz marker 显示) ----
+    height_map: true           # 按高度着色 marker
+    colored_map: false         # 按点云颜色着色 (livox 无 RGB, 关)
+    color_factor: 0.8          # height_map 着色系数
+    publish_free_space: false  # 是否发布空闲体素 marker
+    color:                     # 占据体素颜色 RGBA
+      r: 0.0
+      g: 0.0
+      b: 1.0
+      a: 1.0
+    color_free:                # 空闲体素颜色 RGBA
+      r: 0.0
+      g: 0.0
+      b: 1.0
+      a: 1.0

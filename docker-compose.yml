@@ -1,0 +1,33 @@
+services:
+  car:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+      args:
+        # BASE_IMAGE: docker.m.daocloud.io/library/ros:humble-ros-base
+        BASE_IMAGE: ros:humble-ros-base
+        GIT_MIRROR: https://ghproxy.net
+        APT_MIRROR: mirrors.aliyun.com
+        ROS_MIRROR: mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu
+    image: car_ws:humble
+
+    privileged: true
+    network_mode: host
+
+    volumes:
+      - .:/car_ws
+      - /dev:/dev
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      - ROS_HOME=/car_ws/.ros
+      - ROS_DOMAIN_ID=14
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - DISPLAY=:0
+
+    stdin_open: true
+    tty: true
+    working_dir: /car_ws
+
+    restart: unless-stopped
+    command: ["/car_ws/scripts/auto_start.sh"]

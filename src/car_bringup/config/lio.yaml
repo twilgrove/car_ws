@@ -1,0 +1,39 @@
+imu_topic: /livox/imu    
+lidar_topic: /livox/lidar
+body_frame: lidar_link   
+world_frame: odom        
+
+print_time_cost: false      # 打印耗时
+
+# ---- 点云预处理 ----
+lidar_filter_num: 6         # 抽点: 每 N 个点取1个. 大=稀疏快, 小=密准慢 (建图想更密可降到 3~4)
+lidar_min_range: 0.5        # 最小有效距离(m), 滤掉太近的(车体/噪点)
+lidar_max_range: 30.0       # 最大有效距离(m), 滤掉太远的稀疏点
+scan_resolution: 0.15       # 当前帧体素降采样(m). 小=密准慢 (想细节多可 0.1)
+map_resolution: 0.3         # 地图体素(m). 小=地图精细但吃内存/变慢 (想细可 0.2)
+
+# ---- 局部地图 (ikd-tree 维护范围) ----
+cube_len: 300               # 局部地图立方体边长(m)
+det_range: 60               # 检测范围(m), 一般 >= lidar_max_range
+move_thresh: 1.5            # 移动阈值, 车接近局部地图边界时平移地图
+
+# ---- IMU 噪声 (核心调参) ----
+# 调大 = 更不信 IMU / 更信雷达 ; 调小 = 更信 IMU
+na: 0.01                    # 加速度计噪声
+ng: 0.01                    # 陀螺仪噪声
+nba: 0.0001                 # 加速度计零偏随机游走
+nbg: 0.0001                 # 陀螺仪零偏随机游走
+
+# ---- 初始化 / 滤波器 ----
+imu_init_num: 20            # IMU 初始化采样数. ★启动这 ~2 秒车必须静止★(估重力+零偏)
+near_search_num: 5          # 每个点找最近邻个数, 用于点-面残差 (一般 5)
+ieskf_max_iter: 5           # 迭代EKF最大迭代次数. 大=收敛好但慢 (漂可试 6~8)
+
+# ---- 重力 / 外参 ----
+gravity_align: true         # 用初始静止段对齐重力(让Z轴竖直). 建图建议 true
+esti_il: false              # true=在线估计IMU-雷达外参; false=用下面固定值(外参准就用false)
+r_il: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]  # IMU->雷达 旋转(3x3行优先). 单位阵=同向
+t_il: [-0.011, -0.02329, 0.04412]                    # IMU->雷达 平移(m). MID360官方值, 一般别动
+
+# ---- 观测权重 ----
+lidar_cov_inv: 1000.0       # 雷达置信度(协方差的逆). ★调大=更信雷达=更能压住漂移★ (漂可试 2000~5000)
