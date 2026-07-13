@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
       network: host
       args:
-        # BASE_IMAGE: docker.m.daocloud.io/library/ros:humble-ros-base
-        BASE_IMAGE: ros:humble-ros-base
+        BASE_IMAGE: docker.m.daocloud.io/library/ros:humble-ros-base
+        # BASE_IMAGE: ros:humble-ros-base
         GIT_MIRROR: https://ghproxy.net
         APT_MIRROR: mirrors.aliyun.com
         ROS_MIRROR: mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu

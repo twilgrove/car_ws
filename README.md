@@ -2,7 +2,7 @@
 
 ```bash
 # 构建镜像
-docker compose build --build-arg
+docker compose build
 
 # 运行容器
 docker compose up -d
